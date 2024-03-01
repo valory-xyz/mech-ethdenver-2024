@@ -15,4 +15,9 @@
 /packages/valory/skills/websocket_client/
 /packages/valory/customs/
 /packages/valory/protocols/
-/packages/valory/contracts/
+/packages/valory/contracts/agent_registry
+/packages/valory/contracts/gnosis_safe
+/packages/valory/contracts/gnosis_safe_proxy_factory
+/packages/valory/contracts/hash_checkpoint
+/packages/valory/contracts/multisend
+/packages/valory/contracts/service_registry

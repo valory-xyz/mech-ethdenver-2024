@@ -67,6 +67,7 @@ ContractApiHandler = BaseContractApiHandler
 TendermintHandler = BaseTendermintHandler
 IpfsHandler = BaseIpfsHandler
 
+REQS = "reqs"
 
 class HttpCode(Enum):
     """Http codes"""
@@ -91,31 +92,28 @@ class HttpHandler(BaseHttpHandler):
 
     def setup(self) -> None:
         """Implement the setup."""
-
-        # Custom hostname (set via params)
-        service_endpoint_base = urlparse(
-            self.context.params.service_endpoint_base
-        ).hostname
-
-        # Propel hostname regex
-        propel_uri_base_hostname = (
-            r"https?:\/\/[a-zA-Z0-9]{16}.agent\.propel\.(staging\.)?autonolas\.tech"
-        )
-
         # Route regexes
-        hostname_regex = rf".*({service_endpoint_base}|{propel_uri_base_hostname}|localhost|127.0.0.1|0.0.0.0)(:\d+)?"
+        hostname_regex = rf".*(:\d+)?"
         self.handler_url_regex = rf"{hostname_regex}\/.*"
         health_url_regex = rf"{hostname_regex}\/healthcheck"
+        stream_webhook_regex = rf"{hostname_regex}\stream-webhook"
 
         # Routes
         self.routes = {
-            (HttpMethod.POST.value,): [],
+            (HttpMethod.POST.value,): [
+                (stream_webhook_regex, self._handle_stream)
+            ],
             (HttpMethod.GET.value, HttpMethod.HEAD.value): [
                 (health_url_regex, self._handle_get_health),
             ],
         }
-
+        self.context.shared_state[REQS] = []
         self.json_content_header = "Content-Type: application/json\n"
+
+    @property
+    def reqs(self) -> List:
+        """Return the reqs."""
+        return self.context.shared_state[REQS]
 
     @property
     def synchronized_data(self) -> SynchronizedData:
@@ -319,3 +317,15 @@ class HttpHandler(BaseHttpHandler):
         }
 
         self._send_ok_response(http_msg, http_dialogue, data)
+
+    def _handle_stream(self, http_msg: HttpMessage, http_dialogue: HttpDialogue) -> None:
+        """Handle stream."""
+        try:
+            body = json.loads(http_msg.body.decode())
+            data = body.get("data")
+            if data is not None:
+                self.reqs.append(data)
+        except json.decoder.JSONDecodeError:
+            pass
+
+        self._send_ok_response(http_msg, http_dialogue, {"status": "ok"})

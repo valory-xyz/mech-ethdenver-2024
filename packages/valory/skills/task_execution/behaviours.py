@@ -65,6 +65,7 @@ PENDING_TASKS = "pending_tasks"
 DONE_TASKS = "ready_tasks"
 DONE_TASKS_LOCK = "lock"
 GNOSIS_CHAIN = "gnosis"
+REQS = "reqs"
 
 LEDGER_API_ADDRESS = str(LEDGER_CONNECTION_PUBLIC_ID)
 
@@ -105,6 +106,11 @@ class TaskExecutionBehaviour(SimpleBehaviour):
     def done_tasks_lock(self) -> threading.Lock:
         """Get done_tasks_lock."""
         return self.context.shared_state[DONE_TASKS_LOCK]
+
+    @property
+    def requests(self) -> List:
+        """Get requests."""
+        return self.context.shared_state.get(REQS, [])
 
     @property
     def params(self) -> Params:
@@ -211,26 +217,26 @@ class TaskExecutionBehaviour(SimpleBehaviour):
 
     def _check_for_new_reqs(self) -> None:
         """Check for new reqs."""
-        if self.params.in_flight_req or not self._should_poll():
+        if self.params.in_flight_req:
             # do nothing if there is an in flight request
             # or if we should not poll yet
             return
 
-        if self.params.from_block is None:
-            # set the initial from block
-            self._populate_from_block()
+        if len(self.requests) == 0:
+            # no requests
             return
+
+        request = self.requests[0]
         contract_api_msg, _ = self.context.contract_dialogues.create(
             performative=ContractApiMessage.Performative.GET_STATE,
             contract_address=self.params.agent_mech_contract_addresses[0],
             contract_id=str(AgentMechContract.contract_id),
-            callable="get_multiple_undelivered_reqs",
+            callable="process_tx_receipt",
             kwargs=ContractApiMessage.Kwargs(
                 dict(
-                    from_block=self.params.from_block,
                     chain_id=GNOSIS_CHAIN,
                     contract_addresses=self.params.agent_mech_contract_addresses,
-                    max_block_window=self.params.max_block_window,
+                    receipt=request,
                 )
             ),
             counterparty=LEDGER_API_ADDRESS,
